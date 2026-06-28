@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!--
+    index.html — システム1 固定QR打刻ページ（B1）
+    設計の正：
+      - docs/system1_勤怠給与/デザイン/打刻ページ.md（4画面フロー Welcome→PIN→Action Select→Result）
+      - docs/system1_勤怠給与/デザイン/デザインシステム.md（色・タイポ・余白トークン）
+    実装：GitHub Pages 静的ページ。打刻ロジックは GAS WebApp（app.js の CONFIG.API_URL）。
+    UI言語：英語のみ（B1）。
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light" />
+  <title>Clock In / Out</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- Inter（未読込時は style.css の system-ui フォールバックで成立） -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+
+    <!-- ===== Header band（会社名＋端末時刻：参考表示） ===== -->
+    <header class="app__header">
+      <span class="app__company" id="companyName">Company Name</span>
+      <span class="app__clock tabular" id="deviceClock" aria-label="Current device time">--:-- ICT</span>
+    </header>
+
+    <!-- ===== オフライン/エラーバナー（B1 §5-4） ===== -->
+    <div class="banner" id="offlineBanner" role="alert">
+      <span class="banner__icon" aria-hidden="true">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="1" y1="1" x2="23" y2="23"></line>
+          <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"></path>
+        </svg>
+      </span>
+      <div>
+        <div class="banner__title" id="bannerTitle">No connection</div>
+        <div class="banner__msg" id="bannerMsg">You're offline. Your punch was not recorded.</div>
+      </div>
+    </div>
+
+    <!-- ===== 画面コンテンツ ===== -->
+    <main class="app__content">
+
+      <!-- ----- Screen 1: Welcome / Token Check ----- -->
+      <section class="screen welcome is-active" id="screenWelcome" aria-labelledby="welcomeTitle">
+        <span class="welcome__icon" aria-hidden="true">
+          <!-- 時計アイコン（navy線・stroke 2px） -->
+          <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"></circle>
+            <polyline points="12 7 12 12 15.5 14"></polyline>
+          </svg>
+        </span>
+        <h1 class="t-display" id="welcomeTitle">Welcome</h1>
+        <p class="t-body text-secondary">Tap below to clock in or out.</p>
+        <p class="t-small welcome__date-label">Today</p>
+        <p class="t-h3 welcome__date tabular" id="welcomeDate">—</p>
+      </section>
+
+      <!-- ----- Screen 2: PIN Entry ----- -->
+      <section class="screen pin" id="screenPin" aria-labelledby="pinTitle">
+        <div class="pin__heading">
+          <h2 class="t-h2 center" id="pinTitle">Enter your PIN</h2>
+          <p class="t-small text-secondary center">to identify yourself</p>
+        </div>
+
+        <!-- 桁マスク（6桁） -->
+        <div class="pin__dots" id="pinDots" aria-hidden="true">
+          <span class="pin__dot"></span>
+          <span class="pin__dot"></span>
+          <span class="pin__dot"></span>
+          <span class="pin__dot"></span>
+          <span class="pin__dot"></span>
+          <span class="pin__dot"></span>
+        </div>
+        <!-- 表示トグルON時の数字表示（任意） -->
+        <div class="pin__shown tabular" id="pinShown" aria-hidden="true"></div>
+
+        <p class="pin__error t-small" id="pinError" role="alert" aria-live="assertive"></p>
+
+        <button type="button" class="pin__toggle" id="pinToggle" aria-pressed="false">Show</button>
+
+        <!-- 数字キーパッド（各キー64×64px） -->
+        <div class="keypad" id="keypad" role="group" aria-label="PIN keypad">
+          <button type="button" class="key" data-key="1">1</button>
+          <button type="button" class="key" data-key="2">2</button>
+          <button type="button" class="key" data-key="3">3</button>
+          <button type="button" class="key" data-key="4">4</button>
+          <button type="button" class="key" data-key="5">5</button>
+          <button type="button" class="key" data-key="6">6</button>
+          <button type="button" class="key" data-key="7">7</button>
+          <button type="button" class="key" data-key="8">8</button>
+          <button type="button" class="key" data-key="9">9</button>
+          <span class="key key--empty" aria-hidden="true"></span>
+          <button type="button" class="key" data-key="0">0</button>
+          <button type="button" class="key key--del" data-action="delete" aria-label="Delete last digit">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path>
+              <line x1="18" y1="9" x2="12" y2="15"></line>
+              <line x1="12" y1="9" x2="18" y2="15"></line>
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- ----- Screen 3: Action Select ----- -->
+      <section class="screen action" id="screenAction" aria-labelledby="actionHello">
+        <span class="action__icon" aria-hidden="true">
+          <!-- 人アイコン -->
+          <svg class="icon-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </span>
+        <h2 class="t-h2 action__hello" id="actionHello">Hello, —</h2>
+        <p class="t-small action__empid tabular" id="actionEmpId">—</p>
+        <p class="t-body action__question">What would you like to do?</p>
+
+        <!-- 出勤カード -->
+        <button type="button" class="choice" id="choiceIn" data-type="in" aria-pressed="false">
+          <span class="choice__check" aria-hidden="true">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </span>
+          <span class="choice__body">
+            <span class="choice__title">Punch In</span>
+            <span class="choice__sub">Start your workday</span>
+            <span class="choice__warn" id="choiceInWarn"></span>
+          </span>
+        </button>
+
+        <!-- 退勤カード -->
+        <button type="button" class="choice" id="choiceOut" data-type="out" aria-pressed="false">
+          <span class="choice__check" aria-hidden="true">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </span>
+          <span class="choice__body">
+            <span class="choice__title">Punch Out</span>
+            <span class="choice__sub">End your workday</span>
+            <span class="choice__warn" id="choiceOutWarn"></span>
+          </span>
+        </button>
+
+        <p class="t-small action__last" id="actionLast"></p>
+      </section>
+
+      <!-- ----- Screen 4: Result（全画面） ----- -->
+      <section class="screen result" id="screenResult" aria-labelledby="resultTitle">
+        <div class="result__badge" id="resultBadge" aria-hidden="true">
+          <!-- アイコンはJSで成功/警告/危険に差し替え -->
+          <svg class="icon-lg" id="resultIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+        <h2 class="t-display result__title" id="resultTitle">—</h2>
+        <p class="t-body result__who" id="resultWho"></p>
+        <p class="result__time tabular" id="resultTime"></p>
+        <p class="t-small result__server-note" id="resultServerNote"></p>
+        <!-- 拒否/警告時の対処（What to do） -->
+        <div id="resultHelpBlock" hidden>
+          <p class="t-small result__what">What to do:</p>
+          <p class="t-body result__todo" id="resultTodo"></p>
+        </div>
+        <p class="t-small result__return" id="resultReturn" aria-live="polite"></p>
+      </section>
+
+    </main>
+
+    <!-- ===== Primary action（画面下部固定・画面ごとに切替） ===== -->
+    <footer class="app__footer">
+      <!-- Screen1 -->
+      <button type="button" class="btn btn--primary" id="btnStart" data-footer="welcome">
+        <span class="btn__spinner" aria-hidden="true"></span>
+        <span class="btn__label">Start</span>
+      </button>
+
+      <!-- Screen2 -->
+      <button type="button" class="btn btn--primary" id="btnContinue" data-footer="pin" disabled>
+        <span class="btn__spinner" aria-hidden="true"></span>
+        <span class="btn__label">Continue</span>
+      </button>
+
+      <!-- Screen3 -->
+      <button type="button" class="btn btn--primary" id="btnPunch" data-footer="action" disabled>
+        <span class="btn__spinner" aria-hidden="true"></span>
+        <span class="btn__label">Punch</span>
+      </button>
+      <button type="button" class="btn btn--secondary" id="btnCancel" data-footer="action">
+        <span class="btn__label">Cancel</span>
+      </button>
+
+      <!-- Screen4 (success) -->
+      <button type="button" class="btn btn--primary" id="btnDone" data-footer="result-done">
+        <span class="btn__label">Done</span>
+      </button>
+      <!-- Screen4 (reject) / token / offline -->
+      <button type="button" class="btn btn--primary" id="btnTryAgain" data-footer="result-retry">
+        <span class="btn__spinner" aria-hidden="true"></span>
+        <span class="btn__label">Try again</span>
+      </button>
+      <button type="button" class="btn btn--secondary" id="btnGetHelp" data-footer="result-help">
+        <span class="btn__label">Get help</span>
+      </button>
+    </footer>
+  </div>
+
+  <!-- ライブリージョン（打刻結果の読み上げ・B1 §5-1） -->
+  <div class="sr-only" id="liveRegion" aria-live="assertive" role="status"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
