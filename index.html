@@ -12,12 +12,14 @@
   -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="light" />
+  <!-- キャッシュ対策：古いページ/スクリプトを掴まないよう毎回確認させる -->
+  <meta http-equiv="Cache-Control" content="no-cache, must-revalidate" />
   <title>Clock In / Out</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <!-- Inter（未読込時は style.css の system-ui フォールバックで成立） -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260629" />
 </head>
 <body>
   <div class="app">
@@ -241,6 +243,6 @@
   <!-- ライブリージョン（打刻結果の読み上げ・B1 §5-1） -->
   <div class="sr-only" id="liveRegion" aria-live="assertive" role="status"></div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=20260629"></script>
 </body>
 </html>
