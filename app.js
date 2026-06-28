@@ -43,8 +43,10 @@ var TEXT = {
   preparing: 'Preparing…',
   continueLabel: 'Continue',
   punch: 'Punch',
-  punchIn: 'Punch In',
-  punchOut: 'Punch Out',
+  punchIn: 'Clock In',
+  punchOut: 'Clock Out',
+  breakStart: 'Start Break',
+  breakEnd: 'End Break',
   submitting: 'Submitting…',
   done: 'Done',
   tryAgain: 'Try again',
@@ -53,8 +55,10 @@ var TEXT = {
   pinIncorrect: 'Incorrect PIN. Please try again.',
   pinLocked: 'Too many attempts. Please wait {s}s or contact HR.',
   // Result titles/messages
-  successInTitle: 'Punched In\nsuccessfully',
-  successOutTitle: 'Punched Out\nsuccessfully',
+  successInTitle: 'Clocked In\nsuccessfully',
+  successOutTitle: 'Clocked Out\nsuccessfully',
+  successBreakStartTitle: 'Break started',
+  successBreakEndTitle: 'Break ended',
   serverNote: 'Recorded on the server',
   // reject reasons (B1 §4-c)
   rejectDupTitle: 'Couldn’t punch',
@@ -82,6 +86,7 @@ var TEXT = {
   lastPunch: 'Last punch: {type} at {time} today',
   alreadyIn: 'Already clocked in at {time}',
   alreadyOut: 'Already clocked out at {time}',
+  alreadyDone: 'Most recent was at {time}',
   returning: 'Returning in {s}s…',
   // 場所確認 / 現場QR（ローテQR＋GPS）
   tooFarTitle: 'Not at the shop',
@@ -91,6 +96,9 @@ var TEXT = {
   qrRequiredMsg: 'Please scan the QR shown on the shop tablet.',
   qrRequiredTodo: 'A saved or old QR no longer works. Scan the live QR on the tablet.'
 };
+
+// 種別キー → ボタン/カードのラベル表記（4種）
+var TYPE_LABEL = { in: 'Clock In', out: 'Clock Out', break_start: 'Start Break', break_end: 'End Break' };
 
 // =============================================================================
 // アプリ状態
@@ -155,6 +163,7 @@ function cacheElements() {
     'pinDots', 'pinShown', 'pinError', 'pinToggle', 'keypad',
     'actionHello', 'actionEmpId', 'actionLast',
     'choiceIn', 'choiceOut', 'choiceInWarn', 'choiceOutWarn',
+    'choiceBreakStart', 'choiceBreakEnd', 'choiceBreakStartWarn', 'choiceBreakEndWarn',
     'resultBadge', 'resultIcon', 'resultTitle', 'resultWho', 'resultTime',
     'resultServerNote', 'resultHelpBlock', 'resultTodo', 'resultReturn',
     'btnStart', 'btnContinue', 'btnPunch', 'btnCancel', 'btnDone', 'btnTryAgain', 'btnGetHelp',
@@ -203,6 +212,8 @@ function bindEvents() {
 
   el.choiceIn.addEventListener('click', function () { selectType('in'); });
   el.choiceOut.addEventListener('click', function () { selectType('out'); });
+  el.choiceBreakStart.addEventListener('click', function () { selectType('break_start'); });
+  el.choiceBreakEnd.addEventListener('click', function () { selectType('break_end'); });
   el.btnPunch.addEventListener('click', onPunch);
   el.btnCancel.addEventListener('click', resetToWelcome);
 
@@ -449,53 +460,64 @@ function goToAction() {
   el.actionHello.textContent = 'Hello, ' + (STATE.employeeName || '');
   el.actionEmpId.textContent = STATE.employeeId || '';
 
-  // 選択リセット
+  // 選択リセット＋直近打刻の予防表示（4種を一括処理）
   STATE.selectedType = null;
-  el.choiceIn.classList.remove('is-selected');
-  el.choiceOut.classList.remove('is-selected');
-  el.choiceIn.setAttribute('aria-pressed', 'false');
-  el.choiceOut.setAttribute('aria-pressed', 'false');
+  var els = _choiceEls_();
+  var warns = _warnEls_();
+  for (var k in els) {
+    if (!els.hasOwnProperty(k)) { continue; }
+    els[k].classList.remove('is-selected', 'has-warn');
+    els[k].setAttribute('aria-pressed', 'false');
+    if (warns[k]) { warns[k].textContent = ''; }
+  }
   el.btnPunch.disabled = true;
   setPunchLabel();
-
-  // 直近打刻の予防表示（二重打刻の気づき・B1 §3）
-  el.choiceIn.classList.remove('has-warn');
-  el.choiceOut.classList.remove('has-warn');
-  el.choiceInWarn.textContent = '';
-  el.choiceOutWarn.textContent = '';
   el.actionLast.textContent = '';
 
   if (STATE.lastPunch && STATE.lastPunch.type) {
     var t = STATE.lastPunch.timeDisplay || '';
-    var typeLabel = STATE.lastPunch.type === 'in' ? 'In' : 'Out';
-    el.actionLast.textContent = TEXT.lastPunch.replace('{type}', typeLabel).replace('{time}', t);
-    if (STATE.lastPunch.type === 'in') {
-      el.choiceIn.classList.add('has-warn');
-      el.choiceInWarn.textContent = TEXT.alreadyIn.replace('{time}', t);
-    } else if (STATE.lastPunch.type === 'out') {
-      el.choiceOut.classList.add('has-warn');
-      el.choiceOutWarn.textContent = TEXT.alreadyOut.replace('{time}', t);
+    var lbl = TYPE_LABEL[STATE.lastPunch.type] || STATE.lastPunch.type;
+    el.actionLast.textContent = TEXT.lastPunch.replace('{type}', lbl).replace('{time}', t);
+    var ce = els[STATE.lastPunch.type];
+    var we = warns[STATE.lastPunch.type];
+    if (ce && we) {
+      ce.classList.add('has-warn');
+      we.textContent = TEXT.alreadyDone.replace('{time}', t);
     }
   }
 
   showScreen('action');
 }
 
+// 種別キー → 選択カード要素 / 警告span要素 のマップ（4種）
+function _choiceEls_() {
+  return {
+    in: el.choiceIn, out: el.choiceOut,
+    break_start: el.choiceBreakStart, break_end: el.choiceBreakEnd
+  };
+}
+function _warnEls_() {
+  return {
+    in: el.choiceInWarn, out: el.choiceOutWarn,
+    break_start: el.choiceBreakStartWarn, break_end: el.choiceBreakEndWarn
+  };
+}
+
 function selectType(type) {
   STATE.selectedType = type;
-  var isIn = type === 'in';
-  el.choiceIn.classList.toggle('is-selected', isIn);
-  el.choiceOut.classList.toggle('is-selected', !isIn);
-  el.choiceIn.setAttribute('aria-pressed', isIn ? 'true' : 'false');
-  el.choiceOut.setAttribute('aria-pressed', isIn ? 'false' : 'true');
+  var els = _choiceEls_();
+  for (var k in els) {
+    if (!els.hasOwnProperty(k)) { continue; }
+    var sel = (k === type);
+    els[k].classList.toggle('is-selected', sel);
+    els[k].setAttribute('aria-pressed', sel ? 'true' : 'false');
+  }
   el.btnPunch.disabled = false;
   setPunchLabel();
 }
 
 function setPunchLabel() {
-  var label = STATE.selectedType === 'in' ? TEXT.punchIn
-    : STATE.selectedType === 'out' ? TEXT.punchOut
-      : TEXT.punch;
+  var label = TYPE_LABEL[STATE.selectedType] || TEXT.punch;
   el.btnPunch.querySelector('.btn__label').textContent = label;
 }
 
@@ -588,15 +610,17 @@ function handlePunchResponse(res) {
 function showSuccessResult(res) {
   setResultVariant('success');
   setResultIcon('check');
-  var title = res.type === 'in' ? TEXT.successInTitle : TEXT.successOutTitle;
-  setResultTitle(title);
+  var titleMap = {
+    in: TEXT.successInTitle, out: TEXT.successOutTitle,
+    break_start: TEXT.successBreakStartTitle, break_end: TEXT.successBreakEndTitle
+  };
+  setResultTitle(titleMap[res.type] || TEXT.successInTitle);
   el.resultWho.textContent = (STATE.employeeName || '') + ' · ' + (STATE.employeeId || '');
   el.resultTime.textContent = res.serverTimeDisplay || '';
   el.resultServerNote.textContent = TEXT.serverNote; // 「Recorded on the server」
   el.resultHelpBlock.hidden = true;
 
-  announce('Punched ' + (res.type === 'in' ? 'in' : 'out') +
-    ' successfully at ' + (res.serverTimeDisplay || ''));
+  announce((TYPE_LABEL[res.type] || 'Punch') + ' recorded at ' + (res.serverTimeDisplay || ''));
 
   showScreen('result-success');
   startAutoReturn();

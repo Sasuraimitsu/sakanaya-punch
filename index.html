@@ -127,9 +127,37 @@
             </svg>
           </span>
           <span class="choice__body">
-            <span class="choice__title">Punch In</span>
+            <span class="choice__title">Clock In</span>
             <span class="choice__sub">Start your workday</span>
             <span class="choice__warn" id="choiceInWarn"></span>
+          </span>
+        </button>
+
+        <!-- 休憩開始カード -->
+        <button type="button" class="choice" id="choiceBreakStart" data-type="break_start" aria-pressed="false">
+          <span class="choice__check" aria-hidden="true">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </span>
+          <span class="choice__body">
+            <span class="choice__title">Start Break</span>
+            <span class="choice__sub">Pause for your break</span>
+            <span class="choice__warn" id="choiceBreakStartWarn"></span>
+          </span>
+        </button>
+
+        <!-- 休憩終了カード -->
+        <button type="button" class="choice" id="choiceBreakEnd" data-type="break_end" aria-pressed="false">
+          <span class="choice__check" aria-hidden="true">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </span>
+          <span class="choice__body">
+            <span class="choice__title">End Break</span>
+            <span class="choice__sub">Return from your break</span>
+            <span class="choice__warn" id="choiceBreakEndWarn"></span>
           </span>
         </button>
 
@@ -141,7 +169,7 @@
             </svg>
           </span>
           <span class="choice__body">
-            <span class="choice__title">Punch Out</span>
+            <span class="choice__title">Clock Out</span>
             <span class="choice__sub">End your workday</span>
             <span class="choice__warn" id="choiceOutWarn"></span>
           </span>
