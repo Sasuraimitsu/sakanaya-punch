@@ -82,7 +82,14 @@ var TEXT = {
   lastPunch: 'Last punch: {type} at {time} today',
   alreadyIn: 'Already clocked in at {time}',
   alreadyOut: 'Already clocked out at {time}',
-  returning: 'Returning in {s}s…'
+  returning: 'Returning in {s}s…',
+  // 場所確認 / 現場QR（ローテQR＋GPS）
+  tooFarTitle: 'Not at the shop',
+  tooFarMsg: 'Your location is outside the shop area, so the punch was not recorded.',
+  tooFarTodo: 'Punch while at the shop, and allow location access.',
+  qrRequiredTitle: 'Scan the shop QR',
+  qrRequiredMsg: 'Please scan the QR shown on the shop tablet.',
+  qrRequiredTodo: 'A saved or old QR no longer works. Scan the live QR on the tablet.'
 };
 
 // =============================================================================
@@ -96,7 +103,9 @@ var STATE = {
   lastPunch: null,      // {type, timeDisplay, dateStr} or null
   selectedType: null,   // 'in' | 'out'
   busy: false,          // 送信中フラグ（二重送信防止の最終ガード）
-  autoReturnTimer: null
+  autoReturnTimer: null,
+  displayCode: null,    // QRの c（表示コード。現場QR必須のとき token 取得に同梱）
+  geo: null             // {lat,lng} or null（GPS位置。打刻時にサーバへ送る）
 };
 
 var PIN_LENGTH = 6; // PIN桁数（A6/B1：6桁）
@@ -110,12 +119,34 @@ var el = {};
 document.addEventListener('DOMContentLoaded', function () {
   cacheElements();
   el.companyName.textContent = CONFIG.COMPANY_NAME;
+  STATE.displayCode = _readDisplayCode_();
   startDeviceClock();
   renderWelcomeDate();
   bindEvents();
   bindConnectivity();
   showScreen('welcome');
 });
+
+// QRの c（表示コード）をURLから読む（現場QR必須のとき token 取得に同梱）
+function _readDisplayCode_() {
+  try { return new URLSearchParams(location.search).get('c') || null; }
+  catch (e) { return null; }
+}
+
+// GPS座標を取得（許可されなければ null）。打刻時にサーバへ送り、店舗近傍かを確認させる。
+function _getGeo_() {
+  return new Promise(function (resolve) {
+    if (!navigator.geolocation) { resolve(null); return; }
+    var done = false;
+    var finish = function (v) { if (done) { return; } done = true; resolve(v); };
+    setTimeout(function () { finish(null); }, 9000);
+    navigator.geolocation.getCurrentPosition(
+      function (pos) { finish({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
+      function () { finish(null); },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+  });
+}
 
 function cacheElements() {
   var ids = [
@@ -236,7 +267,14 @@ function onStart() {
   setButtonLoading(el.btnStart, true, TEXT.preparing);
   STATE.busy = true;
 
-  apiGet({ action: 'token', ua: navigator.userAgent })
+  // 先にGPSを取得（許可ダイアログ）→ 表示コード c と一緒に token を要求
+  _getGeo_().then(function (coords) {
+    STATE.geo = coords;
+    var params = { action: 'token', ua: navigator.userAgent };
+    if (STATE.displayCode) { params.c = STATE.displayCode; }
+    if (coords) { params.lat = coords.lat; params.lng = coords.lng; }
+    return apiGet(params);
+  })
     .then(function (res) {
       STATE.busy = false;
       setButtonLoading(el.btnStart, false, TEXT.start);
@@ -244,6 +282,8 @@ function onStart() {
         STATE.token = res.token;
         hideBanner();
         goToPin();
+      } else if (res && res.result === 'qr_required') {
+        showQrRequired();
       } else {
         showStartFailure();
       }
@@ -477,13 +517,16 @@ function onPunch() {
   setButtonLoading(el.btnPunch, true, TEXT.submitting);
   el.btnCancel.disabled = true;
 
-  apiPost({
+  var punchPayload = {
     action: 'punch',
     token: STATE.token,
     employeeId: STATE.employeeId,
     type: STATE.selectedType,
     ua: navigator.userAgent
-  })
+  };
+  if (STATE.geo) { punchPayload.lat = STATE.geo.lat; punchPayload.lng = STATE.geo.lng; }
+
+  apiPost(punchPayload)
     .then(function (res) {
       STATE.busy = false;
       el.btnCancel.disabled = false;
@@ -530,6 +573,9 @@ function handlePunchResponse(res) {
       break;
     case 'token_reused':
       showRejectResult('tokenReused');
+      break;
+    case 'too_far':
+      showRejectResult('tooFar');
       break;
     default:
       showRejectResult('serverError');
@@ -606,6 +652,13 @@ function showRejectResult(reason, res) {
       el.resultServerNote.textContent = TEXT.tokenReusedMsg;
       el.resultTodo.textContent = TEXT.tokenReusedTodo;
       break;
+    case 'tooFar':
+      setResultVariant('warning');
+      setResultIcon('warn');
+      setResultTitle(TEXT.tooFarTitle);
+      el.resultServerNote.textContent = TEXT.tooFarMsg;
+      el.resultTodo.textContent = TEXT.tooFarTodo;
+      break;
     case 'serverError':
     default:
       setResultVariant('danger');
@@ -630,6 +683,20 @@ function showStartFailure() {
   el.resultHelpBlock.hidden = false;
   el.resultTodo.textContent = TEXT.startFailTodo;
   announce(TEXT.startFailTitle + '. ' + TEXT.startFailMsg);
+  showScreen('result-reject');
+}
+
+// 現場QR必須なのに c が無い/失効（保存QR・直接アクセス）。パッドの生QRを促す。
+function showQrRequired() {
+  setResultVariant('warning');
+  setResultIcon('warn');
+  setResultTitle(TEXT.qrRequiredTitle);
+  el.resultWho.textContent = '';
+  el.resultTime.textContent = '';
+  el.resultServerNote.textContent = TEXT.qrRequiredMsg;
+  el.resultHelpBlock.hidden = false;
+  el.resultTodo.textContent = TEXT.qrRequiredTodo;
+  announce(TEXT.qrRequiredTitle + '. ' + TEXT.qrRequiredMsg);
   showScreen('result-reject');
 }
 

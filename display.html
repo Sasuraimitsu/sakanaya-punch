@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SAKANAYA JAPON — Punch QR (Kiosk)</title>
+<!--
+  display.html — 会社パッド（kiosk）専用の打刻QR表示ページ。
+  ・URLの ?k=<kiosk鍵> で表示コード発行APIを呼び、QRを自動更新（約30秒ごと）。
+  ・QRは打刻ページURL + ?c=<表示コード> を符号化。保存QRは数十秒で失効する。
+  ・この鍵は秘密：従業員には渡さず、会社パッドだけで開くこと。
+-->
+<style>
+  :root { --navy:#1B3A5B; --gold:#C9A227; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Segoe UI","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,Arial,sans-serif;
+    background: var(--navy); color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 24px; text-align: center;
+  }
+  h1 { font-size: 1.5rem; margin: 0 0 6px; letter-spacing: .03em; }
+  .sub { color: #cdd8e3; font-size: 1.05rem; margin-bottom: 22px; }
+  .card { background: #fff; border-radius: 22px; padding: 22px; box-shadow: 0 12px 44px rgba(0,0,0,.35); }
+  #qr { width: min(72vmin, 540px); height: min(72vmin, 540px); display: flex; align-items: center; justify-content: center; }
+  #qr img { width: 100%; height: 100%; image-rendering: pixelated; }
+  .status { margin-top: 20px; color: #cdd8e3; font-size: 1rem; min-height: 1.4em; }
+  .hint { margin-top: 6px; color: #9fb0c0; font-size: .9rem; max-width: 560px; }
+  .err { color: #ffd2d2; font-weight: bold; }
+  .clock { color: var(--gold); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+  <h1>SAKANAYA JAPON — Punch In / Out</h1>
+  <div class="sub">Scan this QR with your phone to clock in or out</div>
+  <div class="card"><div id="qr">…</div></div>
+  <div class="status" id="status">Starting…</div>
+  <div class="hint" id="hint"></div>
+
+  <script src="qrcode.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    // ★ GAS WebApp の exec URL（app.js と同じ）
+    var API_URL = 'https://script.google.com/macros/s/AKfycbyKJS9038Jwi_keAO7t-oj32yJbhyan0pmrZufc-v6F1TkP6at_gns1dVavtGoZFBymGQ/exec';
+    var REFRESH_SECONDS = 30; // QR更新間隔（サーバTTL90sより十分短く＝常に有効なQRを表示）
+
+    var statusEl = document.getElementById('status');
+    var hintEl = document.getElementById('hint');
+    var qrEl = document.getElementById('qr');
+
+    function kioskKey() {
+      try { return new URLSearchParams(location.search).get('k') || ''; }
+      catch (e) { return ''; }
+    }
+    // display.html のあるディレクトリ＝打刻ページ(index.html)の場所
+    function punchBase() { return new URL('.', location.href).href; }
+
+    function pad2(n) { return (n < 10 ? '0' : '') + n; }
+    function clockStr() {
+      var d = new Date();
+      return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+    }
+
+    var K = kioskKey();
+    if (!K) {
+      statusEl.innerHTML = '<span class="err">No kiosk key in the URL.</span>';
+      hintEl.textContent = 'Open the kiosk URL from the spreadsheet menu: Payroll Admin → Setup → Show kiosk QR display URL.';
+      qrEl.textContent = '';
+      return;
+    }
+
+    function renderQR(code) {
+      var url = punchBase() + '?c=' + encodeURIComponent(code);
+      var qr = qrcode(0, 'M'); // typeNumber=0(auto), error correction 'M'
+      qr.addData(url);
+      qr.make();
+      qrEl.innerHTML = qr.createImgTag(8, 4); // cellSize, margin（CSSで拡大表示）
+    }
+
+    function fetchCode() {
+      fetch(API_URL + '?action=displayCode&k=' + encodeURIComponent(K), { method: 'GET' })
+        .then(function (r) { return r.text(); })
+        .then(function (t) {
+          var j = null;
+          try { j = JSON.parse(t); } catch (e) { j = null; }
+          if (j && j.ok && j.code) {
+            renderQR(j.code);
+            statusEl.innerHTML = 'Updated <span class="clock">' + clockStr() + '</span> · refreshes every ' + REFRESH_SECONDS + 's';
+            hintEl.textContent = 'A saved photo of this QR stops working within ~1 minute. Always scan the live QR here.';
+          } else {
+            statusEl.innerHTML = '<span class="err">' + ((j && j.message) || 'Could not get a code.') + '</span>';
+            hintEl.textContent = 'Check the kiosk URL / key (Payroll Admin → Setup → Show kiosk QR display URL).';
+          }
+        })
+        .catch(function () {
+          // ネットワーク一時失敗：直前のQRはサーバTTL(90s)内なら有効。次回更新で復帰。
+          statusEl.innerHTML = '<span class="err">Network error at ' + clockStr() + '. Retrying…</span>';
+        });
+    }
+
+    fetchCode();
+    setInterval(fetchCode, REFRESH_SECONDS * 1000);
+  })();
+  </script>
+</body>
+</html>
