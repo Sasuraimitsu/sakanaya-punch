@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate" />
+<title>申請 / Apply — SAKANAYA JAPON</title>
+<!--
+  apply.html — Telegram の「メニューボタン」から開く申請ハブ（Web App）。
+  入力欄の隣のボタンから常時アクセス可。3つの申請フォームへ振り分ける。
+  ※フォームURLが変わったらここを更新する。
+-->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{--navy:#1B3A5B;--navy2:#12293F;--gold:#C9A227;--ink:#16202B;--muted:#5B6976;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,Arial,sans-serif;
+    background:#F4F6F8;color:var(--ink);min-height:100vh;min-height:100dvh;
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+    padding:clamp(16px,5vw,32px);}
+  .head{text-align:center;margin:8px 0 18px;}
+  .head h1{color:var(--navy);font-size:clamp(1.4rem,6vw,1.9rem);margin:0 0 4px;}
+  .head p{color:var(--muted);font-size:clamp(.85rem,3.4vw,1rem);margin:0;letter-spacing:.04em;}
+  .list{width:100%;max-width:440px;display:flex;flex-direction:column;gap:14px;margin-top:6px;}
+  .btn{display:flex;align-items:center;gap:14px;width:100%;min-height:72px;padding:16px 20px;
+    border:none;border-radius:16px;background:#fff;color:var(--ink);text-align:left;cursor:pointer;
+    box-shadow:0 4px 14px rgba(18,41,63,.10);transition:transform .08s ease, box-shadow .08s ease;
+    -webkit-tap-highlight-color:transparent;}
+  .btn:active{transform:translateY(1px);box-shadow:0 2px 8px rgba(18,41,63,.12);}
+  .btn .emo{font-size:1.8rem;flex:0 0 auto;}
+  .btn .tx{display:flex;flex-direction:column;}
+  .btn .en{font-size:1.05rem;font-weight:700;color:var(--navy);}
+  .btn .ja{font-size:.86rem;color:var(--muted);margin-top:2px;}
+  .foot{margin-top:22px;color:var(--muted);font-size:.8rem;text-align:center;max-width:440px;}
+</style>
+</head>
+<body>
+  <div class="head">
+    <h1>申請 / Apply</h1>
+    <p>SAKANAYA JAPON</p>
+  </div>
+  <div class="list">
+    <button class="btn" data-url="https://docs.google.com/forms/d/e/1FAIpQLSfTynBVPNnHBi8yUAJS05nimVYk6XwtFynZ3psXP3cR46E-sA/viewform">
+      <span class="emo">📋</span><span class="tx"><span class="en">Leave</span><span class="ja">欠席・休暇申請</span></span>
+    </button>
+    <button class="btn" data-url="https://docs.google.com/forms/d/e/1FAIpQLSfFuVnwhZWYfr939npzA5qKP0h0g9m6hWrpLbpQKLtNlwQaOw/viewform">
+      <span class="emo">💰</span><span class="tx"><span class="en">Loan</span><span class="ja">ローン申請</span></span>
+    </button>
+    <button class="btn" data-url="https://docs.google.com/forms/d/e/1FAIpQLSfy2IO2EZgIjGprD1-rq6iiWh3Fsh6xJq0xsU4QW5K7N4MZlg/viewform">
+      <span class="emo">📝</span><span class="tx"><span class="en">Other</span><span class="ja">その他</span></span>
+    </button>
+  </div>
+  <div class="foot">Tap to open the form. / ボタンを押すとフォームが開きます。</div>
+
+  <script>
+    var tg = window.Telegram && window.Telegram.WebApp;
+    if (tg) { try { tg.ready(); tg.expand && tg.expand(); } catch (e) {} }
+    function openForm(url) {
+      if (tg && tg.openLink) { tg.openLink(url); }      // Telegram内→外部ブラウザで開く
+      else { window.open(url, '_blank'); }               // 通常ブラウザのフォールバック
+    }
+    var btns = document.querySelectorAll('.btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].addEventListener('click', function () { openForm(this.getAttribute('data-url')); });
+    }
+  </script>
+</body>
+</html>
