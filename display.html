@@ -19,15 +19,21 @@
     font-family: "Segoe UI","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,Arial,sans-serif;
     background: var(--navy); color: #fff;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    min-height: 100vh; padding: 24px; text-align: center;
+    min-height: 100vh; min-height: 100dvh; /* スマホのアドレスバーぶんも考慮 */
+    padding: clamp(8px, 2.5vw, 24px); text-align: center;
   }
-  h1 { font-size: 1.5rem; margin: 0 0 6px; letter-spacing: .03em; }
-  .sub { color: #cdd8e3; font-size: 1.05rem; margin-bottom: 22px; }
-  .card { background: #fff; border-radius: 22px; padding: 22px; box-shadow: 0 12px 44px rgba(0,0,0,.35); }
-  #qr { width: min(72vmin, 540px); height: min(72vmin, 540px); display: flex; align-items: center; justify-content: center; }
+  h1 { font-size: clamp(1.05rem, 4.6vw, 1.5rem); margin: 0 0 4px; letter-spacing: .02em; }
+  .sub { color: #cdd8e3; font-size: clamp(.82rem, 3.2vw, 1.05rem); margin: 0 0 12px; max-width: 92vw; }
+  /* カード幅＝画面に合わせて可変（縦が短い端末でもはみ出さないよう vh でも上限）。QRはカードいっぱい。 */
+  .card {
+    background: #fff; box-shadow: 0 12px 44px rgba(0,0,0,.35);
+    border-radius: clamp(14px, 3vw, 22px); padding: clamp(10px, 3vw, 22px);
+    width: min(94vw, 74vh, 560px);
+  }
+  #qr { width: 100%; aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; }
   #qr img { width: 100%; height: 100%; image-rendering: pixelated; }
-  .status { margin-top: 20px; color: #cdd8e3; font-size: 1rem; min-height: 1.4em; }
-  .hint { margin-top: 6px; color: #9fb0c0; font-size: .9rem; max-width: 560px; }
+  .status { margin-top: clamp(10px, 2.5vw, 18px); color: #cdd8e3; font-size: clamp(.82rem, 3vw, 1rem); min-height: 1.4em; }
+  .hint { margin-top: 6px; color: #9fb0c0; font-size: clamp(.72rem, 2.6vw, .9rem); max-width: min(94vw, 560px); }
   .err { color: #ffd2d2; font-weight: bold; }
   .clock { color: var(--gold); font-variant-numeric: tabular-nums; }
 </style>
