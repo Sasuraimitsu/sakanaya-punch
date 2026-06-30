@@ -113,7 +113,9 @@ var STATE = {
   busy: false,          // 送信中フラグ（二重送信防止の最終ガード）
   autoReturnTimer: null,
   displayCode: null,    // QRの c（表示コード。現場QR必須のとき token 取得に同梱）
-  geo: null             // {lat,lng} or null（GPS位置。打刻時にサーバへ送る）
+  geo: null,            // {lat,lng} or null（GPS位置。打刻時にサーバへ送る）
+  geoRequired: false,   // サーバが店舗GPS設定済み＝打刻時にGPSが要る（token応答で受け取る）
+  geoPromise: null      // GPS取得の進行中Promise（多重起動防止・PIN入力中に裏で取得）
 };
 
 var PIN_LENGTH = 6; // PIN桁数（A6/B1：6桁）
@@ -151,9 +153,23 @@ function _getGeo_() {
     navigator.geolocation.getCurrentPosition(
       function (pos) { finish({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
       function () { finish(null); },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+      // maximumAge を長めにして直近の位置を再利用（取得が速くなる）。
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
     );
   });
+}
+
+// GPS取得を一度だけ開始し、結果を STATE.geo に格納する（多重起動しない）。
+// Start では待たず、必要時（geoRequired）に PIN 入力中の裏で進めて punch で使う。
+function _ensureGeo_() {
+  if (STATE.geo) { return Promise.resolve(STATE.geo); }
+  if (!STATE.geoPromise) {
+    STATE.geoPromise = _getGeo_().then(function (coords) {
+      STATE.geo = coords;
+      return coords;
+    });
+  }
+  return STATE.geoPromise;
 }
 
 function cacheElements() {
@@ -278,19 +294,20 @@ function onStart() {
   setButtonLoading(el.btnStart, true, TEXT.preparing);
   STATE.busy = true;
 
-  // 先にGPSを取得（許可ダイアログ）→ 表示コード c と一緒に token を要求
-  _getGeo_().then(function (coords) {
-    STATE.geo = coords;
-    var params = { action: 'token', ua: navigator.userAgent };
-    if (STATE.displayCode) { params.c = STATE.displayCode; }
-    if (coords) { params.lat = coords.lat; params.lng = coords.lng; }
-    return apiGet(params);
-  })
+  // Start は token 取得だけを待つ（GPSは待たない＝体感を速く）。
+  // GPSが要るか（店舗GPS設定済みか）はサーバ応答 geoRequired で判断し、
+  // 必要なときだけ PIN 入力中の裏で取得を進め、punch で使う。
+  var params = { action: 'token', ua: navigator.userAgent };
+  if (STATE.displayCode) { params.c = STATE.displayCode; }
+
+  apiGet(params)
     .then(function (res) {
       STATE.busy = false;
       setButtonLoading(el.btnStart, false, TEXT.start);
       if (res && res.ok && res.token) {
         STATE.token = res.token;
+        STATE.geoRequired = !!(res && res.geoRequired);
+        if (STATE.geoRequired) { _ensureGeo_(); } // 裏でGPS取得を開始（待たない）
         hideBanner();
         goToPin();
       } else if (res && res.result === 'qr_required') {
@@ -539,16 +556,22 @@ function onPunch() {
   setButtonLoading(el.btnPunch, true, TEXT.submitting);
   el.btnCancel.disabled = true;
 
-  var punchPayload = {
-    action: 'punch',
-    token: STATE.token,
-    employeeId: STATE.employeeId,
-    type: STATE.selectedType,
-    ua: navigator.userAgent
-  };
-  if (STATE.geo) { punchPayload.lat = STATE.geo.lat; punchPayload.lng = STATE.geo.lng; }
+  // GPSが要る設定のときだけ取得完了を待つ（多くはPIN入力中に取得済み＝ほぼ待たない）。
+  // GPS未設定（テスト等）のときは一切待たずに送る。
+  var geoStep = STATE.geoRequired ? _ensureGeo_() : Promise.resolve(null);
 
-  apiPost(punchPayload)
+  geoStep
+    .then(function () {
+      var punchPayload = {
+        action: 'punch',
+        token: STATE.token,
+        employeeId: STATE.employeeId,
+        type: STATE.selectedType,
+        ua: navigator.userAgent
+      };
+      if (STATE.geo) { punchPayload.lat = STATE.geo.lat; punchPayload.lng = STATE.geo.lng; }
+      return apiPost(punchPayload);
+    })
     .then(function (res) {
       STATE.busy = false;
       el.btnCancel.disabled = false;
