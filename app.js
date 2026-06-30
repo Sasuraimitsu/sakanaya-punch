@@ -137,9 +137,10 @@ document.addEventListener('DOMContentLoaded', function () {
   showScreen('welcome');
 });
 
-// QRの c（表示コード）をURLから読む（現場QR必須のとき token 取得に同梱）
+// QRの dc（表示コード）をURLから読む（現場QR必須のとき token 取得に同梱）
+//   ※ パラメータ名は dc。'c' はGoogleの/execで400になるため使わない。
 function _readDisplayCode_() {
-  try { return new URLSearchParams(location.search).get('c') || null; }
+  try { return new URLSearchParams(location.search).get('dc') || null; }
   catch (e) { return null; }
 }
 
@@ -298,7 +299,7 @@ function onStart() {
   // GPSが要るか（店舗GPS設定済みか）はサーバ応答 geoRequired で判断し、
   // 必要なときだけ PIN 入力中の裏で取得を進め、punch で使う。
   var params = { action: 'token', ua: navigator.userAgent };
-  if (STATE.displayCode) { params.c = STATE.displayCode; }
+  if (STATE.displayCode) { params.dc = STATE.displayCode; } // 'c' はGoogleの/execで400になるため dc
 
   apiGet(params)
     .then(function (res) {

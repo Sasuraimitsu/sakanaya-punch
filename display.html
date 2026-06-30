@@ -80,7 +80,8 @@
     }
 
     function renderQR(code) {
-      var url = punchBase() + '?c=' + encodeURIComponent(code);
+      // ★ パラメータ名は dc（display code）。'c' はGoogleの/execで400になるため使わない。
+      var url = punchBase() + '?dc=' + encodeURIComponent(code);
       var qr = qrcode(0, 'M'); // typeNumber=0(auto), error correction 'M'
       qr.addData(url);
       qr.make();
